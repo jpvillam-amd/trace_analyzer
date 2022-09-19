@@ -106,7 +106,7 @@ def summarizeResults(g):
         op_total, op_max, op_min, ops, op_count = all_ops.setdefault(
             name, [0, -1, 10000000, [], 0]
         )
-        op_dur = int(node.traceEvent["dur"])
+        op_dur = node.duration
         op_total += op_dur
         op_max = op_max if op_max > op_dur else op_dur
         op_min = op_min if op_min < op_dur else op_dur
@@ -192,7 +192,7 @@ def getAllVariations(graph, keys):
                 if reference is None:
                     reference = node
                 count += 1
-                total_duration += int(node.traceEvent["dur"])
+                total_duration += node.duration
                 variations[variation_hash] = [reference, count, total_duration]
         variation_dict[key] = variations
     return variation_dict
@@ -225,17 +225,15 @@ def writeAllVariatons(variations, workbook, name, map_sheet, map_column):
             c += 1
             r += 1
             for child in node.children:
-                c_name = (
-                    child.name
-                    if child.name
-                    not in (
-                        "hipExtModuleLaunchKernel",
-                        "hipLaunchKernel",
-                        "cudaLaunchKernel",
-                    )
-                    else child.children[0].name
+                is_kernel_launch = child.name in (
+                    "hipExtModuleLaunchKernel",
+                    "hipLaunchKernel",
+                    "cudaLaunchKernel",
                 )
-                c_duration = child.traceEvent["dur"]
+                c_name = child.name if not is_kernel_launch else child.children[0].name
+                c_duration = (
+                    child.duration if not is_kernel_launch else child.children[0].duration
+                )
                 worksheet.write(r, c, c_name)
                 worksheet.write(r, c + 1, f"Duration: {c_duration}")
                 r += 1
@@ -255,7 +253,7 @@ def writeAllVariatons(variations, workbook, name, map_sheet, map_column):
 
 
 def writeXLSX(name_one, name_two, g_one, g_two):
-    workbook = xlsxwriter.Workbook("report_json.xlsx")
+    workbook = xlsxwriter.Workbook(f"report_{name_one}_{name_two}.xlsx")
     worksheet_comparison = workbook.add_worksheet("Comparison")
 
     # Formats
@@ -406,10 +404,20 @@ def main():
         help="Name, Iteration number, and file for the second trace to compare",
         required=True,
     )
+    parser.add_argument(
+        "--blocking", action="store_true", help="Forces blocking like behavior"
+    )
+    parser.add_argument("--no-blocking", dest="blocking", action="store_false")
+    parser.set_defaults(blocking=True)
     args = parser.parse_args()
 
     g_one = processJson(args.first[2], int(args.first[1]))
     g_two = processJson(args.second[2], int(args.second[1]))
+
+    if args.blocking:
+        # Roll up all kernel times back to their caller chains
+        g_one.rollupKernelTime()
+        g_two.rollupKernelTime()
     all_ops_one = summarizeResults(g_one)
     all_ops_two = summarizeResults(g_two)
 

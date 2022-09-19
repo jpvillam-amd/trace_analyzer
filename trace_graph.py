@@ -4,6 +4,7 @@ class Node:
         self.name = traceEvent["name"]
         self.start = int(traceEvent["ts"])
         self.end = self.start + int(traceEvent["dur"])
+        self.duration = int(traceEvent["dur"])
         self.children = []
         self.parent = None
         self.is_kernel = traceEvent.setdefault("cat", "") in (
@@ -74,6 +75,16 @@ class Node:
             r_list.extend(child.getNames(no_kernels, name_changer))
         return r_list
 
+    def rollupKernelTime(self):
+        kernel_dur = 0
+        if self.is_kernel:
+            return self.duration
+        for child in self.children:
+            kernel_dur += child.rollupKernelTime()
+        self.kernel_duration = kernel_dur
+        self.duration += kernel_dur
+        return kernel_dur
+
 
 class Graph:
     def __init__(self):
@@ -111,3 +122,7 @@ class Graph:
         r_list = []
         r_list.extend(self.top_node.getNames(no_kernels, name_changer))
         return r_list
+
+    def rollupKernelTime(self):
+        # TODO: Make a depth arg for how many levels to roll up
+        self.top_node.rollupKernelTime()
