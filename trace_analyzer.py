@@ -411,8 +411,11 @@ def main():
     parser.set_defaults(blocking=True)
     args = parser.parse_args()
 
-    g_one = processJson(args.first[2], int(args.first[1]))
-    g_two = processJson(args.second[2], int(args.second[1]))
+    iteration_one = int(args.first[1]) if args.first[1] != "None" else None
+    iteration_two = int(args.second[1]) if args.first[1] != "None" else None
+
+    g_one = processJson(args.first[2], iteration_one)
+    g_two = processJson(args.second[2], iteration_two)
 
     if args.blocking:
         # Roll up all kernel times back to their caller chains
