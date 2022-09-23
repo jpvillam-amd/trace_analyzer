@@ -3,6 +3,8 @@
 ### Usage 
  --first NameForFirstTrace IterationForFirstTrace Trace --second NameForSecondTrace IterationForSecondTrace Trace
 
+ NOTE: For now this requires the rpd2tracing.py in this directory with the `--format object` parameter 
+
 ### Variations
 If the traces were ran with blocking you will need to run the tool with --no-blocking to stop our blocking time simulation.
 
