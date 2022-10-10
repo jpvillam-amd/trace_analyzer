@@ -58,6 +58,14 @@ class Node:
         else:
             print("XXX: Searching for something outside iteration")
 
+    def nameSearch(self, name: str):
+        r_list = []
+        if name in self.name:
+            r_list.append(self)
+        for child in self.children:
+            r_list.extend(child.nameSearch(name))
+        return r_list
+
     def toList(self):
         r_list = []
         r_list.append(self)
@@ -66,6 +74,7 @@ class Node:
         return r_list
 
     def getNames(self, no_kernels, name_changer):
+        # TODO no_kernels
         r_list = []
         if self.is_kernel:
             return r_list
@@ -112,6 +121,9 @@ class Graph:
 
     def search(self, time):
         return self.top_node.search(time)
+
+    def nameSearch(self, name):
+        return self.top_node.nameSearch(name)
 
     def toList(self):
         r_list = []

@@ -1,8 +1,10 @@
 import json
 from trace_graph import Graph, Node
+from trace_utils import calcAllBW
 from collections.abc import Iterable
 import xlsxwriter
 import argparse
+import argcomplete
 
 
 def getIterationTimes(data, iteration, num_iterations=1):
@@ -89,6 +91,7 @@ def processJson(file_name, iteration=None):
         launcher = g.search(int(op_link_start["ts"]))
         # XXX: breaking time guarantee of graph
         launcher.children.append(kernel)
+        kernel.parent = launcher
 
     return g
 
@@ -236,6 +239,10 @@ def writeAllVariatons(variations, workbook, name, map_sheet, map_column):
                 )
                 worksheet.write(r, c, c_name)
                 worksheet.write(r, c + 1, f"Duration: {c_duration}")
+                if is_kernel_launch:
+                    if "BW" in child.children[0].traceEvent.keys():
+                        bw = child.children[0].traceEvent["BW"] / 1600
+                        worksheet.write(r, c + 2, f"BW efficiency: {bw}")
                 r += 1
             r += 6
 
@@ -409,6 +416,15 @@ def main():
     )
     parser.add_argument("--no-blocking", dest="blocking", action="store_false")
     parser.set_defaults(blocking=True)
+    parser.add_argument(
+        "--calculate-elementwise-eff",
+        action="store_true",
+        default=False,
+        help="Calculated BW efficiency for elemenwise kernels. "
+        "Requires shapes and assume databound kernels.",
+    )
+    # parser.set_defaults(calculate-=False)
+    argcomplete.autocomplete(parser)
     args = parser.parse_args()
 
     iteration_one = int(args.first[1]) if args.first[1] != "None" else None
@@ -421,12 +437,18 @@ def main():
         # Roll up all kernel times back to their caller chains
         g_one.rollupKernelTime()
         g_two.rollupKernelTime()
-    all_ops_one = summarizeResults(g_one)
-    all_ops_two = summarizeResults(g_two)
 
-    shared_ops = set(all_ops_one.keys()).intersection(set(all_ops_two.keys()))
-    divergent_ops = set(all_ops_one.keys()).symmetric_difference(set(all_ops_two.keys()))
-    printTableSumary(args.first[0], args.second[0], all_ops_one, all_ops_two, shared_ops)
+    if args.calculate_elementwise_eff:
+        # Calculates BW efficiency for some kernels.
+        calcAllBW(g_one)
+
+    # exit()
+    # all_ops_one = summarizeResults(g_one)
+    # all_ops_two = summarizeResults(g_two)
+
+    # shared_ops = set(all_ops_one.keys()).intersection(set(all_ops_two.keys()))
+    # divergent_ops = set(all_ops_one.keys()).symmetric_difference(set(all_ops_two.keys()))
+    # printTableSumary(args.first[0], args.second[0], all_ops_one, all_ops_two, shared_ops)
     writeXLSX(args.first[0], args.second[0], g_one, g_two)
 
 
