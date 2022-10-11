@@ -1,6 +1,6 @@
 import json
 from trace_graph import Graph, Node
-from trace_utils import calcAllBW
+from trace_utils import calcAllBW, shortName
 from collections.abc import Iterable
 import xlsxwriter
 import argparse
@@ -96,12 +96,6 @@ def processJson(file_name, iteration=None):
     return g
 
 
-def shortName(name):
-    s_name = name.split()[0].replace(",", "")
-    s_name = s_name if s_name != "void" else name
-    return s_name
-
-
 def summarizeResults(g):
     all_ops = {}
     for node in g.toList():
@@ -187,7 +181,11 @@ def getAllVariations(graph, keys):
                 variation_hash = key
                 for child in node.children:
                     # Remove non-alphanumberic characters.
-                    s_name = shortName(child.name)
+                    # Bypass the kernellaunch ops
+                    if child.is_kernel_launch and len(child.children) == 1:
+                        s_name = shortName(child.children[0].name)
+                    else:
+                        s_name = shortName(child.name)
                     variation_hash += "".join(c for c in s_name if c.isalnum())
                 reference, count, total_duration = variations.setdefault(
                     variation_hash, [None, 0, 0]
@@ -228,21 +226,18 @@ def writeAllVariatons(variations, workbook, name, map_sheet, map_column):
             c += 1
             r += 1
             for child in node.children:
-                is_kernel_launch = child.name in (
-                    "hipExtModuleLaunchKernel",
-                    "hipLaunchKernel",
-                    "cudaLaunchKernel",
-                )
-                c_name = child.name if not is_kernel_launch else child.children[0].name
-                c_duration = (
-                    child.duration if not is_kernel_launch else child.children[0].duration
-                )
+                # Skip launch layer
+                if child.is_kernel_launch and len(child.children) == 1:
+                    child_resolved = child.children[0]
+                else:
+                    child_resolved = child
+                c_name = child_resolved.name
+                c_duration = child_resolved.duration
                 worksheet.write(r, c, c_name)
                 worksheet.write(r, c + 1, f"Duration: {c_duration}")
-                if is_kernel_launch:
-                    if "BW" in child.children[0].traceEvent.keys():
-                        bw = child.children[0].traceEvent["BW"] / 1600
-                        worksheet.write(r, c + 2, f"BW efficiency: {bw}")
+                if "BW" in child_resolved.traceEvent.keys():
+                    bw = child_resolved.traceEvent["BW"]
+                    worksheet.write(r, c + 2, f"BW efficiency: {bw}")
                 r += 1
             r += 6
 
@@ -259,7 +254,31 @@ def writeAllVariatons(variations, workbook, name, map_sheet, map_column):
         r += 1
 
 
-def writeXLSX(name_one, name_two, g_one, g_two):
+def writeBandwidthSheet(g, name, workbook, bold_format):
+    worksheet = workbook.add_worksheet(f"{name}_BW")
+    headers = ["Kernel", "GB/s"]
+
+    kernels = g.nameSearch("elementwise_kernel")
+
+    # Write header
+    h = 0
+    for header in headers:
+        worksheet.write(0, h, header, bold_format)
+        h += 1
+    r = 1
+    for kernel in kernels:
+        c = 0
+        worksheet.write(r, c, kernel.name)
+        value = kernel.traceEvent["BW"] if "BW" in kernel.traceEvent.keys() else " "
+        worksheet.write(r, c + 1, value)
+        r += 1
+
+    # Formating
+    worksheet.set_column(0, 0, 45)
+    worksheet.set_column(1, 1, 6)
+
+
+def writeXLSX(name_one, name_two, g_one, g_two, args):
     workbook = xlsxwriter.Workbook(f"report_{name_one}_{name_two}.xlsx")
     worksheet_comparison = workbook.add_worksheet("Comparison")
 
@@ -385,6 +404,10 @@ def writeXLSX(name_one, name_two, g_one, g_two):
         redge_format,
     )
 
+    # Write Elementwise BW if enabled.
+    if args.calculate_elementwise_eff:
+        writeBandwidthSheet(g_one, name_one, workbook, bold_format)
+    # Variation Map
     worksheet_variation = workbook.add_worksheet(f"Variation_Map")
     var = getAllVariations(g_one, g_one.getNames(True, shortName))
     writeAllVariatons(var, workbook, name_one, worksheet_variation, 0)
@@ -449,7 +472,7 @@ def main():
     # shared_ops = set(all_ops_one.keys()).intersection(set(all_ops_two.keys()))
     # divergent_ops = set(all_ops_one.keys()).symmetric_difference(set(all_ops_two.keys()))
     # printTableSumary(args.first[0], args.second[0], all_ops_one, all_ops_two, shared_ops)
-    writeXLSX(args.first[0], args.second[0], g_one, g_two)
+    writeXLSX(args.first[0], args.second[0], g_one, g_two, args)
 
 
 if __name__ == "__main__":

@@ -12,6 +12,11 @@ class Node:
             "KernelExecution",
             "FillBuffer",
         )
+        self.is_kernel_launch = self.name in (
+            "hipExtModuleLaunchKernel",
+            "hipLaunchKernel",
+            "cudaLaunchKernel",
+        )
         self.traceEvent = traceEvent
 
     def isInside(self, node) -> bool:
