@@ -4,7 +4,6 @@ from trace_utils import calcAllBW, shortName
 from collections.abc import Iterable
 import xlsxwriter
 import argparse
-import argcomplete
 
 
 def getIterationTimes(data, iteration, num_iterations=1):
@@ -446,8 +445,6 @@ def main():
         help="Calculated BW efficiency for elemenwise kernels. "
         "Requires shapes and assume databound kernels.",
     )
-    # parser.set_defaults(calculate-=False)
-    argcomplete.autocomplete(parser)
     args = parser.parse_args()
 
     iteration_one = int(args.first[1]) if args.first[1] != "None" else None
@@ -464,14 +461,18 @@ def main():
     if args.calculate_elementwise_eff:
         # Calculates BW efficiency for some kernels.
         calcAllBW(g_one)
+    if False:
+        # TODO: Print to command line more efficently
+        all_ops_one = summarizeResults(g_one)
+        all_ops_two = summarizeResults(g_two)
 
-    # exit()
-    # all_ops_one = summarizeResults(g_one)
-    # all_ops_two = summarizeResults(g_two)
-
-    # shared_ops = set(all_ops_one.keys()).intersection(set(all_ops_two.keys()))
-    # divergent_ops = set(all_ops_one.keys()).symmetric_difference(set(all_ops_two.keys()))
-    # printTableSumary(args.first[0], args.second[0], all_ops_one, all_ops_two, shared_ops)
+        shared_ops = set(all_ops_one.keys()).intersection(set(all_ops_two.keys()))
+        divergent_ops = set(all_ops_one.keys()).symmetric_difference(
+            set(all_ops_two.keys())
+        )
+        printTableSumary(
+            args.first[0], args.second[0], all_ops_one, all_ops_two, shared_ops
+        )
     writeXLSX(args.first[0], args.second[0], g_one, g_two, args)
 
 
