@@ -101,3 +101,9 @@ def shortName(name):
     s_name = name.split()[0].replace(",", "")
     s_name = s_name if s_name != "void" else name
     return s_name
+
+
+def getMedian(nums):
+    nums.sort()
+    mid = len(nums) // 2
+    return (nums[mid] + nums[~mid]) / 2
