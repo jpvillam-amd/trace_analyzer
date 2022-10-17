@@ -1,6 +1,6 @@
 import json
 from trace_graph import Graph, Node
-from trace_utils import calcAllBW, shortName
+from trace_utils import calcAllBW, shortName, getMedian
 from collections.abc import Iterable
 import xlsxwriter
 import argparse
@@ -131,12 +131,6 @@ def printTableSumary(name_one, name_two, all_ops_one, all_ops_two, ops_to_print)
             f"{median_two:8}{all_ops_two[key][4]:7}"
             f"{all_ops_two[key][0]/all_ops_one[key][0]:7.3}"
         )
-
-
-def getMedian(nums):
-    nums.sort()
-    mid = len(nums) // 2
-    return (nums[mid] + nums[~mid]) / 2
 
 
 # TODO: pass formats more elegantly
@@ -277,6 +271,49 @@ def writeBandwidthSheet(g, name, workbook, bold_format):
     worksheet.set_column(1, 1, 6)
 
 
+def summarizeResultsKernelBreakdown(graph):
+    ops = graph.toList()
+    el_kernels = 0
+    math_kernels = 0
+    other_kernels = 0
+    cpu_ops = 0
+
+    for op in ops:
+        if op.is_kernel:
+            if op.name.startswith("ampere") or op.name.startswith("Cijk"):
+                math_kernels += op.duration
+            elif "elementwise" in op.name:
+                el_kernels += op.duration
+            else:
+                other_kernels += op.duration
+        else:
+            cpu_ops += op.duration
+    return el_kernels, math_kernels, other_kernels, cpu_ops
+
+
+def writeKernelBreakdowns(
+    times_one, times_two, workbook, name_one, name_two, bold_format
+):
+    worksheet = workbook.add_worksheet(f"Op_times")
+    # Headers
+    headers = [name_one, name_two]
+    row_headers = ["Elementewise Kernels", "Blas Kernels", "Other Kernels", "CPU Ops"]
+
+    # Write header
+    h = 1
+    for header in headers:
+        worksheet.write(0, h, header, bold_format)
+        h += 1
+
+    # Write basic info
+    r = 1
+    for i in range(len(row_headers)):
+        worksheet.write(r, 0, row_headers[i], bold_format)
+        worksheet.write(r, 1, times_one[i])
+        worksheet.write(r, 2, times_two[i])
+        r += 1
+
+
 def writeXLSX(name_one, name_two, g_one, g_two, args):
     workbook = xlsxwriter.Workbook(f"report_{name_one}_{name_two}.xlsx")
     worksheet_comparison = workbook.add_worksheet("Comparison")
@@ -406,13 +443,21 @@ def writeXLSX(name_one, name_two, g_one, g_two, args):
     # Write Elementwise BW if enabled.
     if args.calculate_elementwise_eff:
         writeBandwidthSheet(g_one, name_one, workbook, bold_format)
+    # Get and write kernel summary:
+    if args.kernel_stats:
+        times_one = summarizeResultsKernelBreakdown(g_one)
+        times_two = summarizeResultsKernelBreakdown(g_two)
+        writeKernelBreakdowns(
+            times_one, times_two, workbook, name_one, name_two, bold_format
+        )
     # Variation Map
-    worksheet_variation = workbook.add_worksheet(f"Variation_Map")
-    var = getAllVariations(g_one, g_one.getNames(True, shortName))
-    writeAllVariatons(var, workbook, name_one, worksheet_variation, 0)
-    var = getAllVariations(g_two, g_two.getNames(True, shortName))
-    writeAllVariatons(var, workbook, name_two, worksheet_variation, 1)
-    worksheet_variation.set_column(0, 1, 45)
+    if args.variations:
+        worksheet_variation = workbook.add_worksheet(f"Variation_Map")
+        var = getAllVariations(g_one, g_one.getNames(True, shortName))
+        writeAllVariatons(var, workbook, name_one, worksheet_variation, 0)
+        var = getAllVariations(g_two, g_two.getNames(True, shortName))
+        writeAllVariatons(var, workbook, name_two, worksheet_variation, 1)
+        worksheet_variation.set_column(0, 1, 45)
 
     workbook.close()
 
@@ -434,16 +479,28 @@ def main():
         required=True,
     )
     parser.add_argument(
+        "--variations",
+        action="store_true",
+        default=False,
+        help="Creates and view of the tree and shows all variations of ops called.",
+    )
+    parser.add_argument(
         "--blocking", action="store_true", help="Forces blocking like behavior"
     )
     parser.add_argument("--no-blocking", dest="blocking", action="store_false")
-    parser.set_defaults(blocking=True)
+    parser.set_defaults(blocking=False)
     parser.add_argument(
         "--calculate-elementwise-eff",
         action="store_true",
         default=False,
         help="Calculated BW efficiency for elemenwise kernels. "
         "Requires shapes and assume databound kernels.",
+    )
+    parser.add_argument(
+        "--kernel-stats",
+        action="store_true",
+        default=False,
+        help="Creates a summary sheet of aggregated kernel times and cpu time.",
     )
     args = parser.parse_args()
 
@@ -461,6 +518,7 @@ def main():
     if args.calculate_elementwise_eff:
         # Calculates BW efficiency for some kernels.
         calcAllBW(g_one)
+
     if False:
         # TODO: Print to command line more efficently
         all_ops_one = summarizeResults(g_one)
@@ -473,6 +531,7 @@ def main():
         printTableSumary(
             args.first[0], args.second[0], all_ops_one, all_ops_two, shared_ops
         )
+
     writeXLSX(args.first[0], args.second[0], g_one, g_two, args)
 
 

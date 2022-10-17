@@ -99,6 +99,22 @@ class Node:
         self.duration += kernel_dur
         return kernel_dur
 
+    def allKernels(self):
+        r_list = []
+        if self.is_kernel:
+            r_list.append(self)
+        for child in self.children:
+            r_list.extend(child.allKernels())
+        return r_list
+
+    def allCPUOps(self):
+        r_list = []
+        if not self.is_kernel:
+            r_list.append(self)
+        for child in self.children:
+            r_list.extend(child.allCPUOps())
+        return r_list
+
 
 class Graph:
     def __init__(self):
@@ -143,3 +159,9 @@ class Graph:
     def rollupKernelTime(self):
         # TODO: Make a depth arg for how many levels to roll up
         self.top_node.rollupKernelTime()
+
+    def allKernels(self):
+        return self.top_node.allKernels()
+
+    def allCPUOps(self):
+        return self.top_node.allCPUOps()
