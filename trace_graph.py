@@ -11,6 +11,7 @@ class Node:
             "Kernel",
             "KernelExecution",
             "FillBuffer",
+            "Memset",
         )
         self.is_kernel_launch = self.name in (
             "hipExtModuleLaunchKernel",

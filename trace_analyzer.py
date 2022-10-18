@@ -56,21 +56,22 @@ def processJson(file_name, iteration=None):
                     g.addNode(n)
         # XXX: Sometime kernels are launched after the iteration, choosing an arbritary buffer.
         elif (
-            (data["traceEvents"][i].keys() >= {"name", "ts", "dur", "args"})
+            (data["traceEvents"][i].keys() >= {"name", "ts", "dur", "args", "cat"})
             and (int(data["traceEvents"][i]["ts"]) >= starting_time)
-            and (int(data["traceEvents"][i]["ts"]) <= ending_time + 1000000)
+            and (int(data["traceEvents"][i]["ts"]) <= ending_time + 1000000000)
+            and (
+                data["traceEvents"][i]["cat"]
+                in ("Kernel", "KernelExecution", "FillBuffer", "Memset")
+            )
         ):
             n = Node(data["traceEvents"][i])
-            if n.is_kernel:
-                kernels[n.start] = n
+            kernels[n.start] = n
         elif (
             (data["traceEvents"][i].keys() >= {"name", "ts", "cat", "ph"})
             and (data["traceEvents"][i]["ph"] in ("f", "s"))
             and (int(data["traceEvents"][i]["ts"]) >= starting_time)
-            and (
-                (int(data["traceEvents"][i]["ts"]) <= ending_time)
-                or data["traceEvents"][i]["id"] in op_links.keys()
-            )
+            # and (int(data["traceEvents"][i]["ts"]) <= ending_time)
+            # or (data["traceEvents"][i]["id"] in op_links.keys())
         ):
             op_links.setdefault(data["traceEvents"][i]["id"], []).append(
                 data["traceEvents"][i]
@@ -83,6 +84,8 @@ def processJson(file_name, iteration=None):
         op_link_start = (
             op_links[key][0] if op_links[key][0]["ph"] == "s" else op_links[key][1]
         )
+        if int(op_link_start["ts"]) > ending_time:
+            continue
         op_link_finish = (
             op_links[key][0] if op_links[key][0]["ph"] == "f" else op_links[key][1]
         )
@@ -280,7 +283,11 @@ def summarizeResultsKernelBreakdown(graph):
 
     for op in ops:
         if op.is_kernel:
-            if op.name.startswith("ampere") or op.name.startswith("Cijk"):
+            if (
+                op.name.startswith("ampere")
+                or op.name.startswith("Cijk")
+                or "cutlass" in op.name
+            ):
                 math_kernels += op.duration
             elif "elementwise" in op.name:
                 el_kernels += op.duration
