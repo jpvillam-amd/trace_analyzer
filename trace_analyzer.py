@@ -58,10 +58,10 @@ def processJson(file_name, iteration=None):
         elif (
             (data["traceEvents"][i].keys() >= {"name", "ts", "dur", "args", "cat"})
             and (int(data["traceEvents"][i]["ts"]) >= starting_time)
-            and (int(data["traceEvents"][i]["ts"]) <= ending_time + 1000000000)
+            # and (int(data["traceEvents"][i]["ts"]) <= ending_time + 100000000000)
             and (
                 data["traceEvents"][i]["cat"]
-                in ("Kernel", "KernelExecution", "FillBuffer", "Memset")
+                in ("Kernel", "KernelExecution", "FillBuffer", "Memset", "kernel")
             )
         ):
             n = Node(data["traceEvents"][i])
@@ -395,7 +395,8 @@ def writeXLSX(name_one, name_two, g_one, g_two, args):
         diff_median = getMedian(summarized_ops_one[op][3]) - getMedian(
             summarized_ops_two[op][3]
         )
-        diff_ratio = summarized_ops_two[op][0] / summarized_ops_one[op][0]
+        # XXX: zero duration ops are a problem...
+        diff_ratio = summarized_ops_two[op][0] / max(summarized_ops_one[op][0], 1)
         worksheet_comparison.write(r, c, diff_total, ledge_format)
         worksheet_comparison.write(r, c + 1, diff_median)
         worksheet_comparison.write(r, c + 2, diff_ratio)
