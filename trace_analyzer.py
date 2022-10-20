@@ -451,6 +451,7 @@ def writeXLSX(name_one, name_two, g_one, g_two, args):
     # Write Elementwise BW if enabled.
     if args.calculate_elementwise_eff:
         writeBandwidthSheet(g_one, name_one, workbook, bold_format)
+        writeBandwidthSheet(g_two, name_two, workbook, bold_format)
     # Get and write kernel summary:
     if args.kernel_stats:
         times_one = summarizeResultsKernelBreakdown(g_one)
@@ -476,6 +477,7 @@ def main():
         "-f",
         "--first",
         nargs=3,
+        metavar=("Name", "Iternation#", "FileName"),
         help="Name, Iteration number, and file for the first trace to compare",
         required=True,
     )
@@ -483,6 +485,7 @@ def main():
         "-s",
         "--second",
         nargs=3,
+        metavar=("Name", "Iternation#", "FileName"),
         help="Name, Iteration number, and file for the second trace to compare",
         required=True,
     )
@@ -526,6 +529,7 @@ def main():
     if args.calculate_elementwise_eff:
         # Calculates BW efficiency for some kernels.
         calcAllBW(g_one)
+        calcAllBW(g_two)
 
     if False:
         # TODO: Print to command line more efficently
