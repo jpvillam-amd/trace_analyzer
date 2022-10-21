@@ -252,7 +252,7 @@ def writeAllVariatons(variations, workbook, name, map_sheet, map_column):
 
 def writeBandwidthSheet(g, name, workbook, bold_format):
     worksheet = workbook.add_worksheet(f"{name}_BW")
-    headers = ["Kernel", "GB/s"]
+    headers = ["Kernel", "GB/s", "Caller", "Size"]
 
     kernels = g.nameSearch("elementwise_kernel")
 
@@ -267,6 +267,9 @@ def writeBandwidthSheet(g, name, workbook, bold_format):
         worksheet.write(r, c, kernel.name)
         value = kernel.traceEvent["BW"] if "BW" in kernel.traceEvent.keys() else " "
         worksheet.write(r, c + 1, value)
+        worksheet.write(r, c + 2, kernel.parent.parent.name)
+        sizes = kernel.parent.parent.traceEvent["args"]["Input Dims"]
+        worksheet.write(r, c + 3, str(sizes))
         r += 1
 
     # Formating

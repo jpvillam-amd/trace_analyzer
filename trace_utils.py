@@ -34,6 +34,7 @@ def calcAllBW(graph):
 
             match = re.search(".* sizes = (.*), input_op_ids.*", launcher.name)
             sizes = json.loads(match.group(1))
+            launcher.traceEvent["args"]["Input Dims"] = sizes
 
         # Get Op type
         if "CUDAFunctor_add" in kernel.name:
