@@ -61,7 +61,14 @@ def processJson(file_name, iteration=None):
             # and (int(data["traceEvents"][i]["ts"]) <= ending_time + 100000000000)
             and (
                 data["traceEvents"][i]["cat"]
-                in ("Kernel", "KernelExecution", "FillBuffer", "Memset", "kernel")
+                in (
+                    "Kernel",
+                    "KernelExecution",
+                    "FillBuffer",
+                    "Memset",
+                    "kernel",
+                    "Memcpy",
+                )
             )
         ):
             n = Node(data["traceEvents"][i])
@@ -89,8 +96,12 @@ def processJson(file_name, iteration=None):
         op_link_finish = (
             op_links[key][0] if op_links[key][0]["ph"] == "f" else op_links[key][1]
         )
-        kernel = kernels[int(op_link_finish["ts"])]
-        launcher = g.search(int(op_link_start["ts"]))
+        try:
+            kernel = kernels[int(op_link_finish["ts"])]
+            launcher = g.search(int(op_link_start["ts"]))
+        except Exception as e:
+            print(f"Unable to find kernel exected at: {int(op_link_finish['ts'])}")
+            raise
         # XXX: breaking time guarantee of graph
         launcher.children.append(kernel)
         kernel.parent = launcher
