@@ -24,15 +24,15 @@ class Node:
 
     def isInside(self, node) -> bool:
         if isinstance(node, int):
-            return node >= self.start and node <= self.end
+            return node >= self.start and node < self.end
         else:
             return node.start >= self.start and node.end <= self.end
 
     def __str__(self):
-        s = f" {self.name} {self.start} {self.end}->"
+        s = f" {self.name} {self.start} {self.end}: ("
         for child in self.children:
             s = s + str(child)
-        return s
+        return s + ")"
 
     def addChild(self, node):
 
