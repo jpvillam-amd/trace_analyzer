@@ -7,6 +7,7 @@ class Node:
         self.duration = int(traceEvent["dur"])
         self.children = []
         self.parent = None
+        self.cat = traceEvent.setdefault("cat", "")
         self.is_kernel = traceEvent.setdefault("cat", "") in (
             "Kernel",
             "KernelExecution",
@@ -14,6 +15,7 @@ class Node:
             "Memset",
             "kernel",
             "Memcpy",
+            "gpu_memcpy",
         )
         self.is_kernel_launch = self.name in (
             "hipExtModuleLaunchKernel",
@@ -117,6 +119,33 @@ class Node:
         for child in self.children:
             r_list.extend(child.allCPUOps())
         return r_list
+
+    ## TODO: Also add similar function to class Graph when this function
+    ## becomes more stable
+    def allCPUOpKernelPairs(self):
+        '''
+        Return a list of (CPU Ops, [list of kernels]) pairs
+        Notice that the CPU Ops here are the CPU Ops at the lowest level, which means that
+        they have at least a direct child being kernel launch
+        '''
+        r_list = []
+        local_list = []
+        for child in self.children:
+            if not child.is_kernel_launch:
+                r_list.extend(child.allCPUOpKernelPairs())
+            else:
+                if len(child.children) > 0:
+                    for c in child.children:
+                        if c.is_kernel:
+                            local_list.append(c)
+                else:
+                    print("%s is kernel launch but does not have kernel launched" %(child.name))
+                    print("Its parent is %s. The start time is %d, duration is %d" %(self.parent.name, self.start, self.duration))
+                    print(self)
+        if len(local_list) > 0:
+            r_list.append((self, local_list))
+        return r_list
+
 
 
 class Graph:
