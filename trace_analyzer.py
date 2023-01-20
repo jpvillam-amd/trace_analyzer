@@ -70,6 +70,7 @@ def processJson(file_name, iteration=None):
                     "kernel",
                     "Memcpy",
                     "gpu_memcpy",
+                    "gpu_memset",
                 )
             )
         ):

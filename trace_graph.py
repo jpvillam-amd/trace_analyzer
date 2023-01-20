@@ -16,6 +16,7 @@ class Node:
             "kernel",
             "Memcpy",
             "gpu_memcpy",
+            "gpu_memset",
         )
         self.is_kernel_launch = self.name in (
             "hipExtModuleLaunchKernel",
