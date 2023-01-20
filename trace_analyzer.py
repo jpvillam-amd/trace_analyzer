@@ -1,4 +1,5 @@
 import json
+import sys
 from trace_graph import Graph, Node
 from trace_utils import calcAllBW, shortName, getMedian
 from collections.abc import Iterable
@@ -68,6 +69,7 @@ def processJson(file_name, iteration=None):
                     "Memset",
                     "kernel",
                     "Memcpy",
+                    "gpu_memcpy",
                 )
             )
         ):
@@ -484,6 +486,25 @@ def writeXLSX(name_one, name_two, g_one, g_two, args):
 
     workbook.close()
 
+def match_rocm_cuda_kernels(g_one, g_two):
+    g_one_cpu_ops =  [g_one.top_node]
+    g_two_cpu_ops =  [g_two.top_node]
+    rocm_op_kernels = g_one.top_node.allCPUOpKernelPairs()
+    cuda_op_kernels = g_two.top_node.allCPUOpKernelPairs()
+    assert len(rocm_op_kernels) == len(cuda_op_kernels), ('There %d ROCm kernels and %d CUDA kernels' %(len(rocm_op_kernels), len(cuda_op_kernels)))
+    min_len = min(len(rocm_op_kernels), len(cuda_op_kernels))
+    for i in range(min_len):
+        if len(rocm_op_kernels[i][1]) == len(cuda_op_kernels[i][1]):
+            for j in range(len(rocm_op_kernels[i][1])):
+                print(rocm_op_kernels[i][1][j].name, '====', cuda_op_kernels[i][1][j].name)
+        else:
+            print(';'.join([ x.name for x in rocm_op_kernels[i][1] ]), '====', ';'.join([ x.name for x in cuda_op_kernels[i][1] ]))
+    for i in range(min_len, len(rocm_op_kernels)):
+        print(';'.join([ x.name for x in rocm_op_kernels[i][1] ]), '====')
+    for i in range(min_len, len(cuda_op_kernels)):
+        print('====', ';'.join([ x.name for x in cuda_op_kernels[i][1] ]))
+
+    
 
 def main():
     parser = argparse.ArgumentParser(description="Comparison script for trace files.")
@@ -527,6 +548,12 @@ def main():
         default=False,
         help="Creates a summary sheet of aggregated kernel times and cpu time.",
     )
+    parser.add_argument(
+        "--match-kernels-only",
+        action="store_true",
+        default=False,
+        help="Only creates a sheet with aligned ROCm and CUDA kernel names"
+        )
     args = parser.parse_args()
 
     iteration_one = int(args.first[1]) if args.first[1] != "None" else None
@@ -534,6 +561,10 @@ def main():
 
     g_one = processJson(args.first[2], iteration_one)
     g_two = processJson(args.second[2], iteration_two)
+
+    if args.match_kernels_only:
+        match_rocm_cuda_kernels(g_one, g_two)
+        return
 
     if args.blocking:
         # Roll up all kernel times back to their caller chains
